@@ -1,0 +1,52 @@
+{
+  "name": "@vasser/vdiff",
+  "version": "0.1.0",
+  "description": "Self-hosted visual regression testing: render component stories at two git refs, screenshot them with Playwright and diff the pixels.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vasser/vdiff.git"
+  },
+  "homepage": "https://github.com/vasser/vdiff#readme",
+  "bugs": {
+    "url": "https://github.com/vasser/vdiff/issues"
+  },
+  "type": "module",
+  "bin": {
+    "vdiff": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp src/report/template.html dist/report/template.html",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "keywords": [
+    "visual-regression",
+    "screenshot",
+    "playwright",
+    "percy",
+    "storybook"
+  ],
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "pixelmatch": "^8.0.0",
+    "playwright": "1.64.1",
+    "pngjs": "^7.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/pngjs": "^6.0.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

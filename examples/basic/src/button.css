@@ -1,0 +1,4 @@
+.btn { font: 600 14px/1 sans-serif; padding: 10px 16px; border-radius: 6px; border: 1px solid transparent; }
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-secondary { background: #fff; color: #1f2937; border-color: #d1d5db; }
+.btn:disabled { opacity: 0.5; }

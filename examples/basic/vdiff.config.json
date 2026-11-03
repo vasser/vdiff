@@ -1,0 +1,5 @@
+{
+  "install": "npm install",
+  "stories": "stories/*.stories.jsx",
+  "viewport": "800x600"
+}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vdiff report</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1b1f24; --muted: #5c6670; --border: #dde1e6;
+    --changed: #c2410c; --added: #15803d; --removed: #b91c1c; --error: #9f1239; --ok: #4b5563;
+    --accent: #2563eb; --checker: #e9ecef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --text: #e6e9ed; --muted: #98a2ad; --border: #2a3039;
+      --changed: #fb923c; --added: #4ade80; --removed: #f87171; --error: #fb7185; --ok: #9ca3af;
+      --accent: #60a5fa; --checker: #22272e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { padding: 20px 24px 12px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  h1 { margin: 0 0 4px; font-size: 18px; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .meta code { font-size: 12px; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  nav button { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: inherit; }
+  nav button[aria-pressed="true"] { background: var(--text); color: var(--panel); border-color: var(--text); }
+  nav .n { opacity: .7; margin-left: 4px; }
+  main { padding: 16px 24px 48px; display: grid; gap: 16px; }
+  .empty { color: var(--muted); padding: 48px 0; text-align: center; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card > .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .card .id { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+  .s-changed { color: var(--changed); } .s-added { color: var(--added); } .s-removed { color: var(--removed); }
+  .s-error { color: var(--error); } .s-unchanged, .s-skipped { color: var(--ok); }
+  .stat { color: var(--muted); font-size: 12px; }
+  .modes { margin-left: auto; display: flex; gap: 4px; }
+  .modes button { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+  .modes button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+  .body { padding: 14px; overflow-x: auto; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  figure { margin: 0; }
+  figcaption { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .img { background: repeating-conic-gradient(var(--checker) 0 25%, transparent 0 50%) 0 0 / 16px 16px; border: 1px solid var(--border); display: inline-block; max-width: 100%; }
+  .img img { display: block; max-width: 100%; height: auto; }
+  .slider { position: relative; display: inline-block; max-width: 100%; }
+  .slider .top { position: absolute; inset: 0; overflow: hidden; border-right: 2px solid var(--accent); }
+  .slider .top img { max-width: none; }
+  .range { width: 100%; max-width: 600px; margin-top: 8px; display: block; }
+  pre.err { white-space: pre-wrap; color: var(--error); margin: 0; font-size: 12px; }
+  details.warn { margin-top: 10px; color: var(--muted); font-size: 12px; }
+  details.warn pre { white-space: pre-wrap; }
+  @media (max-width: 600px) { header, main { padding-left: 16px; padding-right: 16px; } .modes { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>vdiff report</h1>
+  <div class="meta" id="meta"></div>
+  <nav id="filters"></nav>
+</header>
+<main id="list"></main>
+<script id="data" type="application/json">/*__VDIFF_DATA__*/</script>
+<script>
+(() => {
+  const data = JSON.parse(document.getElementById('data').textContent);
+  const ORDER = ['changed', 'added', 'removed', 'error', 'unchanged', 'skipped'];
+  const LABEL = { changed: 'Changed', added: 'New', removed: 'Removed', error: 'Errors', unchanged: 'Unchanged', skipped: 'Not affected' };
+  const counts = Object.fromEntries(ORDER.map((s) => [s, data.stories.filter((x) => x.status === s).length]));
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) k === 'class' ? (n.className = v) : k.startsWith('on') ? n.addEventListener(k.slice(2), v) : n.setAttribute(k, v);
+    for (const k of kids.flat()) if (k != null) n.append(k);
+    return n;
+  };
+  const short = (s) => (s && s.length > 12 ? s.slice(0, 10) : s);
+
+  document.getElementById('meta').append(
+    'base ', el('code', {}, `${data.base.ref} (${short(data.base.sha)})`),
+    ' → head ', el('code', {}, `${data.head.ref} (${short(data.head.sha)})`),
+    ` · ${data.stories.length} stories · ${new Date(data.createdAt).toLocaleString()}`
+  );
+
+  const firstNonEmpty = ORDER.find((s) => counts[s] && !['unchanged', 'skipped'].includes(s));
+  let filter = (() => { try { return localStorage.getItem('vdiff-filter'); } catch { return null; } })();
+  if (!filter || !counts[filter]) filter = firstNonEmpty || 'all';
+
+  const nav = document.getElementById('filters');
+  const renderNav = () => {
+    nav.replaceChildren(
+      ...['all', ...ORDER].filter((s) => s === 'all' || counts[s]).map((s) =>
+        el('button', { 'aria-pressed': String(s === filter), onclick: () => { filter = s; try { localStorage.setItem('vdiff-filter', s); } catch {} renderNav(); renderList(); } },
+          s === 'all' ? 'All' : LABEL[s], el('span', { class: 'n' }, String(s === 'all' ? data.stories.length : counts[s])))
+      )
+    );
+  };
+
+  const img = (src, alt) => el('span', { class: 'img' }, el('img', { src, alt, loading: 'lazy' }));
+  const views = {
+    side: (s) => el('div', { class: 'pair' },
+      s.base && el('figure', {}, el('figcaption', {}, 'Before'), img(s.base, 'before')),
+      s.head && el('figure', {}, el('figcaption', {}, 'After'), img(s.head, 'after'))),
+    diff: (s) => el('div', { class: 'pair' },
+      el('figure', {}, el('figcaption', {}, 'Diff (red = changed pixels)'), img(s.diff, 'diff')),
+      el('figure', {}, el('figcaption', {}, 'After'), img(s.head, 'after'))),
+    slider: (s) => {
+      const top = el('div', { class: 'top', style: 'width:50%' }, el('img', { src: s.base, alt: 'before' }));
+      return el('div', {}, el('div', { class: 'slider img' }, el('img', { src: s.head, alt: 'after' }), top),
+        el('div', {}, el('input', { class: 'range', type: 'range', min: 0, max: 100, value: 50, 'aria-label': 'Before/after split', oninput: (e) => (top.style.width = e.target.value + '%') })));
+    }
+  };
+
+  const card = (s) => {
+    const body = el('div', { class: 'body' });
+    const modes = s.status === 'changed' ? ['side', 'diff', 'slider'] : [];
+    let mode = modes[0];
+    const modeBar = el('div', { class: 'modes' });
+    const paint = () => {
+      modeBar.replaceChildren(...modes.map((m) => el('button', { 'aria-pressed': String(m === mode), onclick: () => { mode = m; paint(); } }, { side: 'Side by side', diff: 'Diff', slider: 'Slider' }[m])));
+      body.replaceChildren(...[
+        s.status === 'error' ? el('pre', { class: 'err' }, s.error) :
+        s.status === 'skipped' ? el('div', { class: 'stat' }, 'Nothing this story imports changed, so it was not rendered.') :
+        mode ? views[mode](s) : views.side(s),
+        s.warnings && s.warnings.length ? el('details', { class: 'warn' }, el('summary', {}, `${s.warnings.length} console warning(s)`), el('pre', {}, s.warnings.join('\n'))) : null
+      ].filter(Boolean));
+    };
+    paint();
+    const stat = s.status === 'changed'
+      ? `${s.diffPixels.toLocaleString()} px (${s.ratio < 0.0001 ? '<0.01' : (s.ratio * 100).toFixed(2)}%)${s.sizeChanged ? ' · size changed' : ''}`
+      : '';
+    return el('section', { class: 'card' },
+      el('div', { class: 'head' }, el('span', { class: 'id' }, s.id), el('span', { class: `badge s-${s.status}` }, LABEL[s.status]), el('span', { class: 'stat' }, stat), modeBar),
+      body);
+  };
+
+  const list = document.getElementById('list');
+  const renderList = () => {
+    const items = data.stories.filter((s) => filter === 'all' || s.status === filter);
+    list.replaceChildren(...(items.length ? items.map(card) : [el('div', { class: 'empty' }, data.stories.length ? 'Nothing here.' : 'No visual changes.')]));
+  };
+  renderNav();
+  renderList();
+})();
+</script>
+</body>
+</html>
